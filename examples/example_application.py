@@ -24,11 +24,12 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 # ThingsBoard REST API URL
-url = "http://localhost:8080"
+url = "http://192.168.11.22:8080"
 
 # Default Tenant Administrator credentials
-username = "tenant@thingsboard.org"
-password = "tenant"
+# username = "tenant@thingsboard.org"
+username = "customer@thingsboard.org"
+password = "customer"
 
 
 # Creating the REST client object with context manager to get auto token refresh
@@ -37,23 +38,38 @@ with RestClientCE(base_url=url) as rest_client:
         # Auth with credentials
         rest_client.login(username=username, password=password)
 
-        # Creating an Asset
-        asset = Asset(name="Building 1", type="building")
-        asset = rest_client.save_asset(asset)
+        user = rest_client.get_user()
+        logging.info("User: ", user.customer_id)
 
-        logging.info("Asset was created:\n%r\n", asset)
+        # Creating an Asset
+        farm_asset = Asset(name="Farm 2", type="farm", customer_id=user.customer_id)
+        logging.info("Asset: ", farm_asset)
+        farm_asset = rest_client.save_asset(farm_asset)
+
+        pond_asset = Asset(name="Pond 2", type="pond", customer_id=user.customer_id)
+        logging.info("Asset: ", pond_asset)
+        pond_asset = rest_client.save_asset(pond_asset)
+
+        farm_pond_relation = EntityRelation(_from=farm_asset.id, to=pond_asset.id, type="Contains")
+        rest_client.save_relation(farm_pond_relation)
+
+        # logging.info("Asset was created:\n%r\n", asset)
+        device_profile_id = list(filter(lambda x: x.type == 'DEFAULT', rest_client.get_device_profiles(10, 0).data))[0]
+        logging.info("Device profile :\n%r\n", device_profile_id)
 
         # creating a Device
-        device = Device(name="Thermometer 1", type="thermometer")
+        device = Device(name="Thermometer 4", type="thermometer", customer_id=user.customer_id, device_profile_id=device_profile_id.id)
         device = rest_client.save_device(device)
-
         logging.info(" Device was created:\n%r\n", device)
 
-        # Creating relations from device to asset
-        relation = EntityRelation(_from=asset.id, to=device.id, type="Contains")
-        relation = rest_client.save_relation(relation)
+        pond_device_relation = EntityRelation(_from=pond_asset.id, to=device.id, type="Contains")
+        rest_client.save_relation(pond_device_relation)
 
-        logging.info(" Relation was created:\n%r\n", relation)
+        # Creating relations from device to asset
+        # relation = EntityRelation(_from=asset.id, to=device.id, type="Contains")
+        # relation = rest_client.save_relation(relation)
+
+        # logging.info(" Relation was created:\n%r\n", relation)
     except ApiException as e:
         logging.exception(e)
 
